@@ -27,6 +27,7 @@ class Tool:
     arch_support: List[str] = field(default_factory=lambda: ['amd64', 'arm64'])
     requires_compile: bool = False
     custom_handler: Optional[str] = None
+    docker_compose: Optional[str] = None
     enabled: bool = True
 
 
@@ -71,6 +72,7 @@ def _load_from_manifest(path: Path) -> List[Tool]:
             arch_support=tool_data.get('arch_support', ['amd64', 'arm64']),
             requires_compile=tool_data.get('requires_compile', False),
             custom_handler=tool_data.get('custom_handler'),
+            docker_compose=tool_data.get('docker_compose'),
             enabled=tool_data.get('enabled', True),
         )
         tools.append(tool)

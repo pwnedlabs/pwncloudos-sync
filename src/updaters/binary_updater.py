@@ -63,11 +63,17 @@ class BinaryUpdater(BaseUpdater):
         if not current or not latest:
             return True
 
-        from packaging import version
         try:
-            return version.parse(current) < version.parse(latest)
+            return self._version_key(current) < self._version_key(latest)
         except Exception:
             return current != latest
+
+    def _version_key(self, value: str):
+        """Build a sortable key from a semantic-ish version string."""
+        import re
+
+        parts = re.findall(r'\d+', value)
+        return tuple(int(p) for p in parts) if parts else (0,)
 
     def _get_download_url(self) -> Optional[str]:
         """Get download URL for current architecture."""
@@ -164,6 +170,7 @@ class BinaryUpdater(BaseUpdater):
                 # Find binary in directory
                 pass  # Handle directory case
             else:
+                target.parent.mkdir(parents=True, exist_ok=True)
                 # Copy to target
                 shutil.copy2(extracted, target)
                 os.chmod(target, 0o755)

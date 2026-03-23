@@ -179,12 +179,18 @@ class RollbackEngine:
     def _backup_file(self, path: Path, backup_name: str) -> RollbackData:
         """Backup a single file."""
         backup_path = self.backup_dir / f"{backup_name}.backup"
-        shutil.copy2(path, backup_path)
+        if path.exists():
+            shutil.copy2(path, backup_path)
+            original_version = "file"
+        else:
+            # Fresh install path: keep a sentinel so rollback logic has state.
+            backup_path.write_text("MISSING")
+            original_version = "missing"
 
         return RollbackData(
             tool_name=backup_name.split('_')[0],
             backup_path=backup_path,
-            original_version="file",
+            original_version=original_version,
             backup_timestamp=datetime.now(),
             backup_type='file',
         )

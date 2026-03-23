@@ -59,7 +59,12 @@ ALLOWED_UPDATE_PATHS: List[str] = [
     "/opt/ps_tools/*",
     "/opt/code_scanning/*",
     "/opt/cracking-tools/*",
+    "~/.local/bin",
+    "/home/*/.local/bin",
+    "~/.local/bin/*",
+    "/home/*/.local/bin/*",
     "~/.local/pipx/venvs/*",
+    "/home/*/.local/pipx/venvs/*",
     "/usr/local/bin/steampipe",
     "/usr/local/bin/powerpipe",
     "~/go/bin/*",
@@ -156,7 +161,7 @@ def validate_update_target(path: Path) -> None:
     if not is_path_allowed(path):
         raise UnauthorizedPathError(
             f"REFUSED: Path not in allowed update locations: {path}\n"
-            f"Allowed locations: /opt/*_tools/, ~/.local/pipx/, /usr/local/bin/"
+            f"Allowed locations: /opt/*_tools/, ~/.local/bin/, ~/.local/pipx/venvs/, /usr/local/bin/"
         )
 
     logger.debug(f"Path validated for update: {path}")

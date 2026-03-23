@@ -3,7 +3,9 @@ pipx package updater for pwncloudos-sync.
 """
 
 import json
+import shutil
 import subprocess
+from pathlib import Path
 from typing import Optional
 import requests
 from .base import BaseUpdater, UpdateResult
@@ -49,12 +51,17 @@ class PipxUpdater(BaseUpdater):
         if not current or not latest:
             return True
 
-        # Simple version comparison
-        from packaging import version
         try:
-            return version.parse(current) < version.parse(latest)
+            return self._version_key(current) < self._version_key(latest)
         except Exception:
             return current != latest
+
+    def _version_key(self, value: str):
+        """Build a sortable key from a semantic-ish version string."""
+        import re
+
+        parts = re.findall(r'\d+', value)
+        return tuple(int(p) for p in parts) if parts else (0,)
 
     def perform_update(self) -> UpdateResult:
         """Execute pipx upgrade."""
@@ -116,16 +123,37 @@ class PipxUpdater(BaseUpdater):
                     self.tool.version_command.split(),
                     capture_output=True, timeout=10
                 )
-                return result.returncode == 0
+                # Some tools print version/help and exit non-zero; treat output as a sign of life.
+                if result.returncode == 0 or result.stdout or result.stderr:
+                    return True
             except Exception:
                 pass
 
-        # Just check pipx list
+        # Prefer pipx JSON metadata and app paths for reliable verification.
         try:
             result = subprocess.run(
-                ['pipx', 'list'],
-                capture_output=True
+                ['pipx', 'list', '--json'],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
-            return self.tool.pypi_name in result.stdout.decode()
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                venvs = data.get('venvs', {})
+
+                if self.tool.pypi_name and self.tool.pypi_name in venvs:
+                    return True
+
+                target_path = str(self.tool.path.resolve())
+                for _pkg, pkg_info in venvs.items():
+                    app_paths = pkg_info.get('metadata', {}).get('main_package', {}).get('app_paths', [])
+                    if any(Path(app).expanduser().resolve().as_posix() == target_path for app in app_paths):
+                        return True
         except Exception:
-            return False
+            pass
+
+        # Final fallback: executable exists on PATH.
+        if shutil.which(self.tool.path.name):
+            return True
+
+        return False
