@@ -80,26 +80,22 @@ class SyncLogger:
     def tool_start(self, tool_name: str):
         """Log start of tool update."""
         self.logger.info(f"Updating {tool_name}...")
-        if self.verbose >= 1:
-            print(f"  {self.SYMBOLS['updating']} {tool_name}...", end='', flush=True)
+        print(f"{self.SYMBOLS['updating']} {tool_name}...", end='', flush=True)
 
     def tool_success(self, tool_name: str, old_ver: str, new_ver: str):
         """Log successful update."""
         self.logger.info(f"Updated {tool_name}: {old_ver} -> {new_ver}")
-        if self.verbose >= 1:
-            print(f"\r  {self.SYMBOLS['success']} {tool_name}: {old_ver} -> {new_ver}")
+        print(f"\r  {self.SYMBOLS['success']} {tool_name}: {old_ver} -> {new_ver}")
 
     def tool_skip(self, tool_name: str, reason: str):
         """Log skipped tool."""
         self.logger.debug(f"Skipped {tool_name}: {reason}")
-        if self.verbose >= 1:
-            print(f"\r  {self.SYMBOLS['skipped']} {tool_name}: {reason}")
+        print(f"\r  {self.SYMBOLS['skipped']} {tool_name}: {reason}")
 
     def tool_fail(self, tool_name: str, error: str):
         """Log failed update."""
         self.logger.error(f"Failed {tool_name}: {error}")
-        if self.verbose >= 1:
-            print(f"\r  {self.SYMBOLS['failed']} {tool_name}: {error}")
+        print(f"\r  {self.SYMBOLS['failed']} {tool_name}: {error}")
 
     def summary(self, results: List):
         """Log final summary."""

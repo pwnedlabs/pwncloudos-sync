@@ -5,6 +5,7 @@ Rollback engine for pwncloudos-sync.
 import shutil
 import tarfile
 import json
+import os
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime
@@ -282,14 +283,24 @@ class RollbackEngine:
             original_path=path,
         )
 
+    def _needs_sudo(self, path: str) -> bool:
+        """Check if operations on this path need sudo."""
+        if os.geteuid() == 0:
+            return False
+        return str(path).startswith('/opt/')
+
     def _restore_git_state(self, rollback_data: RollbackData) -> bool:
         """Restore git repository to previous commit."""
         state = json.loads(rollback_data.backup_path.read_text())
         commit = state['commit']
         path = state['path']
 
+        cmd = ['git', '-C', path, 'reset', '--hard', commit]
+        if self._needs_sudo(path):
+            cmd = ['sudo'] + cmd
+
         result = subprocess.run(
-            ['git', '-C', path, 'reset', '--hard', commit],
+            cmd,
             capture_output=True, text=True
         )
 
@@ -333,11 +344,17 @@ class RollbackEngine:
         # If the backup was a sentinel for a missing file, remove the installed copy
         if backup.read_text().strip() == "MISSING":
             if target.exists():
-                target.unlink()
+                if self._needs_sudo(str(target)):
+                    subprocess.run(['sudo', 'rm', str(target)], capture_output=True)
+                else:
+                    target.unlink()
             return True
 
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(backup, target)
+        if self._needs_sudo(str(target)):
+            subprocess.run(['sudo', 'cp', '-p', str(backup), str(target)], capture_output=True)
+        else:
+            shutil.copy2(backup, target)
         return True
 
     def _restore_files(self, rollback_data: RollbackData) -> bool:
@@ -353,10 +370,17 @@ class RollbackEngine:
             logger.error(f"Backup directory not found: {backup_dir}")
             return False
 
+        use_sudo = self._needs_sudo(str(target_dir))
         for backed_up_file in backup_dir.iterdir():
             if backed_up_file.is_file():
                 dest = target_dir / backed_up_file.name
-                shutil.copy2(backed_up_file, dest)
+                if use_sudo:
+                    subprocess.run(
+                        ['sudo', 'cp', '-p', str(backed_up_file), str(dest)],
+                        capture_output=True
+                    )
+                else:
+                    shutil.copy2(backed_up_file, dest)
 
         return True
 
@@ -373,13 +397,24 @@ class RollbackEngine:
             logger.error(f"Backup tarball not found: {backup_path}")
             return False
 
+        use_sudo = self._needs_sudo(str(target))
+
         # Remove the current version of the directory
         if target.exists():
-            shutil.rmtree(target)
+            if use_sudo:
+                subprocess.run(['sudo', 'rm', '-rf', str(target)], capture_output=True)
+            else:
+                shutil.rmtree(target)
 
         # Extract tarball to the parent directory (arcname was dir.name)
-        with tarfile.open(backup_path, "r:gz") as tar:
-            tar.extractall(target.parent)
+        if use_sudo:
+            subprocess.run(
+                ['sudo', 'tar', '-xzf', str(backup_path), '-C', str(target.parent)],
+                capture_output=True
+            )
+        else:
+            with tarfile.open(backup_path, "r:gz") as tar:
+                tar.extractall(target.parent)
 
         return True
 

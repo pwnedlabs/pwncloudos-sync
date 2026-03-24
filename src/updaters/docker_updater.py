@@ -7,6 +7,7 @@ with fallback to v1 (`docker-compose` standalone).
 
 import shutil
 import subprocess
+from pathlib import Path
 from typing import List, Optional
 from .base import BaseUpdater, UpdateResult
 
@@ -81,7 +82,20 @@ class DockerUpdater(BaseUpdater):
         try:
             compose_file = getattr(self.tool, 'docker_compose', None)
 
-            if compose_file:
+            # Auto-detect compose file if specified one doesn't exist
+            if compose_file and not Path(compose_file).exists():
+                tool_dir = Path(self.tool.path) if self.tool.path else None
+                if tool_dir and tool_dir.is_dir():
+                    for candidate in [
+                        'docker-compose.yml', 'docker-compose.yaml',
+                        'compose.yml', 'compose.yaml',
+                    ]:
+                        p = tool_dir / candidate
+                        if p.exists():
+                            compose_file = str(p)
+                            break
+
+            if compose_file and Path(compose_file).exists():
                 compose_cmd = self._compose_command()
                 if not compose_cmd:
                     return UpdateResult(

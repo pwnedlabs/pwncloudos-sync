@@ -131,6 +131,24 @@ class GitUpdater(BaseUpdater):
                 fpath.parent.mkdir(parents=True, exist_ok=True)
                 fpath.write_bytes(content)
                 os.chmod(fpath, stat.S_IMODE(mode))
+            except PermissionError:
+                # /opt/ paths owned by root — use sudo to restore
+                try:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                        tmp.write(content)
+                        tmp_path = tmp.name
+                    subprocess.run(
+                        ['sudo', 'cp', tmp_path, str(fpath)],
+                        capture_output=True, timeout=10
+                    )
+                    subprocess.run(
+                        ['sudo', 'chmod', oct(stat.S_IMODE(mode))[2:], str(fpath)],
+                        capture_output=True, timeout=10
+                    )
+                    os.unlink(tmp_path)
+                except Exception as e2:
+                    self.logger.error(f"CRITICAL: Failed to restore launcher file {fpath} with sudo: {e2}")
             except OSError as e:
                 self.logger.error(f"CRITICAL: Failed to restore launcher file {fpath}: {e}")
         if backups:

@@ -62,7 +62,8 @@ class BinaryUpdater(BaseUpdater):
         latest = self.get_latest_version()
 
         if not current or not latest:
-            return True
+            # Can't determine versions — don't falsely claim update available
+            return False
 
         try:
             return self._version_key(current) < self._version_key(latest)

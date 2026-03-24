@@ -2,6 +2,7 @@
 Git + Python dependencies updater for pwncloudos-sync.
 """
 
+import os
 import subprocess
 from .git_updater import GitUpdater
 from .base import UpdateResult
@@ -9,6 +10,13 @@ from .base import UpdateResult
 
 class GitPythonUpdater(GitUpdater):
     """Updater for git repositories with Python dependencies."""
+
+    def _pip_cmd(self, *args) -> list:
+        """Build a pip command, adding sudo and --break-system-packages as needed."""
+        cmd = ['python3', '-m', 'pip'] + list(args) + ['--break-system-packages']
+        if os.geteuid() != 0 and str(self.tool.path).startswith('/opt/'):
+            cmd = ['sudo'] + cmd
+        return cmd
 
     def perform_update(self) -> UpdateResult:
         """Execute git pull and update Python dependencies."""
@@ -24,7 +32,7 @@ class GitPythonUpdater(GitUpdater):
             self.logger.info(f"Installing Python dependencies from {req_file}")
             try:
                 result = subprocess.run(
-                    ['python3', '-m', 'pip', 'install', '-r', str(req_file), '--upgrade', '--quiet'],
+                    self._pip_cmd('install', '-r', str(req_file), '--upgrade', '--quiet'),
                     capture_output=True, text=True, timeout=300
                 )
 
@@ -44,7 +52,7 @@ class GitPythonUpdater(GitUpdater):
             self.logger.info("Running pip install -e .")
             try:
                 subprocess.run(
-                    ['python3', '-m', 'pip', 'install', '-e', str(self.tool.path), '--quiet'],
+                    self._pip_cmd('install', '-e', str(self.tool.path), '--quiet'),
                     capture_output=True, text=True, timeout=300
                 )
             except Exception as e:
@@ -54,7 +62,7 @@ class GitPythonUpdater(GitUpdater):
             self.logger.info("Running pip install from pyproject.toml")
             try:
                 subprocess.run(
-                    ['python3', '-m', 'pip', 'install', str(self.tool.path), '--quiet'],
+                    self._pip_cmd('install', str(self.tool.path), '--quiet'),
                     capture_output=True, text=True, timeout=300
                 )
             except Exception as e:
