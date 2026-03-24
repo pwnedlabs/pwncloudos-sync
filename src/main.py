@@ -455,14 +455,16 @@ def check_and_offer_updates(tools, config, logger) -> int:
 
     tools_to_update = [t for t, _, _ in updates_available]
     results = []
+
+    from .logger import SyncLogger
+    sync_logger = SyncLogger(config.log_file, config.verbose)
+
     for i, tool in enumerate(tools_to_update, 1):
         print(f"[{i}/{len(tools_to_update)}] ", end='')
-        result = update_tool(tool, config, rollback_engine, state_manager, logger)
+        result = update_tool(tool, config, rollback_engine, state_manager, sync_logger)
         results.append(result)
 
     # Print summary
-    from .logger import SyncLogger
-    sync_logger = SyncLogger(config.log_file, config.verbose)
     sync_logger.summary(results)
 
     state_manager.save()
