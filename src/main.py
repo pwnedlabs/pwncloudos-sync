@@ -380,12 +380,17 @@ def check_and_offer_updates(tools, config, logger) -> int:
     print(f"{Colors.CYAN}{header_line}{Colors.END}")
 
     idx = 1
+    def _cat_col(cat_name):
+        """Return a padded, colored category string."""
+        color = Colors.CATEGORY_COLORS.get(cat_name, Colors.GRAY)
+        return f"{color}{cat_name:<{cat_w}}{Colors.END}"
+
     for tool, current, latest in updates_available:
         status = f"{Colors.YELLOW}↑ Update available{Colors.END}"
         print(
             f"  {Colors.CYAN}{idx:<4}{Colors.END}"
             f"{Colors.WHITE}{tool.name:<{name_w}}{Colors.END}"
-            f"{Colors.GRAY}{tool.category:<{cat_w}}{Colors.END}"
+            f"{_cat_col(tool.category)}"
             f"{Colors.WHITE}{current:<{cur_w}}{Colors.END}"
             f"{Colors.GREEN}{latest:<{lat_w}}{Colors.END}"
             f"{status}"
@@ -397,7 +402,7 @@ def check_and_offer_updates(tools, config, logger) -> int:
         print(
             f"  {Colors.CYAN}{idx:<4}{Colors.END}"
             f"{Colors.WHITE}{tool.name:<{name_w}}{Colors.END}"
-            f"{Colors.GRAY}{tool.category:<{cat_w}}{Colors.END}"
+            f"{_cat_col(tool.category)}"
             f"{Colors.WHITE}{current:<{cur_w}}{Colors.END}"
             f"{Colors.GRAY}{current:<{lat_w}}{Colors.END}"
             f"{status}"
@@ -409,7 +414,7 @@ def check_and_offer_updates(tools, config, logger) -> int:
         print(
             f"  {Colors.CYAN}{idx:<4}{Colors.END}"
             f"{Colors.WHITE}{tool.name:<{name_w}}{Colors.END}"
-            f"{Colors.GRAY}{tool.category:<{cat_w}}{Colors.END}"
+            f"{_cat_col(tool.category)}"
             f"{Colors.GRAY}{'?':<{cur_w}}{Colors.END}"
             f"{Colors.GRAY}{'?':<{lat_w}}{Colors.END}"
             f"{status}"
@@ -468,6 +473,21 @@ def check_and_offer_updates(tools, config, logger) -> int:
         result = update_tool(tool, config, rollback_engine, state_manager, sync_logger,
                              skip_needs_check=True)
         results.append(result)
+
+    # --- Retry failed tools ---
+    failed_results = [(i, r) for i, r in enumerate(results) if not r.success and not r.skipped]
+    if failed_results:
+        failed_tools = [tools_to_update[i] for i, _ in failed_results]
+        failed_names = ', '.join(r.tool_name for _, r in failed_results)
+        print(f"\n{Colors.YELLOW}⟳ Retrying {len(failed_results)} failed tool(s): {failed_names}{Colors.END}\n")
+
+        for j, tool in enumerate(failed_tools, 1):
+            print(f"[retry {j}/{len(failed_tools)}] ", end='')
+            retry_result = update_tool(tool, config, rollback_engine, state_manager, sync_logger,
+                                       skip_needs_check=True)
+            # Replace the failed result with the retry result
+            orig_idx = [i for i, r in failed_results if r.tool_name == tool.name][0]
+            results[orig_idx] = retry_result
 
     # Print summary
     sync_logger.summary(results)

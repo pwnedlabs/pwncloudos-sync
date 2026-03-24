@@ -10,13 +10,14 @@ echo "Updating John the Ripper..."
 
 cd "$JOHN_PATH"
 
-# Pull latest changes
-git pull origin bleeding-jumbo
+# Pull latest changes (needs sudo for /opt/ paths)
+sudo git -C "$JOHN_PATH" config --global --add safe.directory "$JOHN_PATH" 2>/dev/null || true
+sudo git -C "$JOHN_PATH" pull origin bleeding-jumbo
 
 # Compile
 cd src
-./configure
-make -s clean
-make -sj$(nproc)
+sudo ./configure
+sudo make -s clean
+sudo make -sj$(nproc)
 
 echo "John the Ripper updated successfully"

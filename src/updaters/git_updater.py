@@ -256,8 +256,8 @@ class GitUpdater(BaseUpdater):
             )
 
             if result.returncode != 0:
-                # If pull fails, try reset --hard
-                self.logger.warning("git pull failed, trying reset --hard")
+                # If pull fails, try reset --hard (normal for repos with local changes)
+                self.logger.info("git pull failed, falling back to reset --hard")
                 result = subprocess.run(
                     self._git_cmd('reset', '--hard', 'origin/HEAD', write=True),
                     capture_output=True, text=True, timeout=60

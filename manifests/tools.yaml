@@ -216,13 +216,11 @@ tools:
     github_repo: hac01/iam-policy-visualize
     arch_support: [amd64, arm64]
 
-  - name: sprayshark
+  - name: google-spray
     category: gcp
-    install_method: pipx
-    path: ~/.local/bin/sprayshark
-    pypi_name: sprayshark
-    github_repo: helviojunior/sprayshark
-    version_command: "sprayshark --version"
+    install_method: git_python
+    path: /opt/gcp_tools/google_spray
+    github_repo: pwnedlabs/google-spray
     arch_support: [amd64, arm64]
 
   - name: username-anarchy

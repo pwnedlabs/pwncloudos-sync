@@ -108,6 +108,32 @@ class Colors:
     GRAY = '\033[90m'
     WHITE = '\033[97m'
     MAGENTA = '\033[35m'
+    LIGHT_BLUE = '\033[38;5;75m'
+    ORANGE = '\033[38;5;208m'
+    TEAL = '\033[38;5;80m'
+    PINK = '\033[38;5;213m'
+    LIME = '\033[38;5;154m'
+    LAVENDER = '\033[38;5;141m'
+    SALMON = '\033[38;5;210m'
+    SKY = '\033[38;5;117m'
+
+    # Per-category color map
+    CATEGORY_COLORS = {
+        'aws': '\033[38;5;208m',      # Orange
+        'azure': '\033[38;5;75m',     # Light blue
+        'gcp': '\033[38;5;80m',       # Teal
+        'multi_cloud': '\033[38;5;141m',  # Lavender
+        'ps_tools': '\033[38;5;213m',     # Pink
+        'code_scanning': '\033[38;5;154m', # Lime
+        'cracking': '\033[38;5;210m',     # Salmon
+        'system': '\033[38;5;117m',       # Sky blue
+    }
+
+    @classmethod
+    def category(cls, cat: str) -> str:
+        """Return colored category string."""
+        color = cls.CATEGORY_COLORS.get(cat, cls.GRAY)
+        return f"{color}{cat}{cls.END}"
 
 
 # ============================================================================

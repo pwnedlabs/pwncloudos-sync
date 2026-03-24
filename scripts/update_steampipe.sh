@@ -6,7 +6,7 @@ set -e
 
 echo "Updating Steampipe..."
 
-# Download and run official installer
-curl -fsSL https://raw.githubusercontent.com/turbot/steampipe/main/install.sh | sh
+# Download and run official installer (needs root for /usr/local/bin)
+curl -fsSL https://raw.githubusercontent.com/turbot/steampipe/main/install.sh | sudo sh
 
 echo "Steampipe updated successfully"
