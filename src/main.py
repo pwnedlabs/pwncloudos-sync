@@ -170,8 +170,12 @@ def main() -> int:
         return 2
 
 
-def update_tool(tool, config, rollback_engine, state_manager, logger):
-    """Update a single tool."""
+def update_tool(tool, config, rollback_engine, state_manager, logger, skip_needs_check=False):
+    """Update a single tool.
+    
+    Args:
+        skip_needs_check: If True, skip the needs_update() check (already verified by caller).
+    """
     from .tools.registry import get_updater_for_tool
     from .core.safeguards import validate_update_target
     from .core.arch import detect_architecture
@@ -199,8 +203,8 @@ def update_tool(tool, config, rollback_engine, state_manager, logger):
         # Get the appropriate updater
         updater = get_updater_for_tool(tool, config)
 
-        # Check if update is needed
-        if not config.force and not updater.needs_update():
+        # Check if update is needed (skip if caller already verified)
+        if not skip_needs_check and not config.force and not updater.needs_update():
             logger.tool_skip(tool.name, "Already up to date")
             return UpdateResult(
                 success=True,
@@ -454,14 +458,15 @@ def check_and_offer_updates(tools, config, logger) -> int:
     print(f"\n{Colors.BOLD}{Colors.CYAN}Starting updates...{Colors.END}\n")
 
     tools_to_update = [t for t, _, _ in updates_available]
-    results = []
 
     from .logger import SyncLogger
     sync_logger = SyncLogger(config.log_file, config.verbose)
 
+    results = []
     for i, tool in enumerate(tools_to_update, 1):
         print(f"[{i}/{len(tools_to_update)}] ", end='')
-        result = update_tool(tool, config, rollback_engine, state_manager, sync_logger)
+        result = update_tool(tool, config, rollback_engine, state_manager, sync_logger,
+                             skip_needs_check=True)
         results.append(result)
 
     # Print summary

@@ -103,7 +103,8 @@ class FileReplacementUpdater(BaseUpdater):
 
         latest = self._get_latest_commit()
         if not latest:
-            return True
+            # Can't determine latest — don't falsely claim update available
+            return False
 
         # Try to get local git commit hash for comparison
         if self.tool.path.is_dir() and (self.tool.path / '.git').exists():
@@ -119,8 +120,8 @@ class FileReplacementUpdater(BaseUpdater):
             except Exception:
                 pass
 
-        # No git directory — cannot reliably compare, assume update needed
-        return True
+        # No git directory — cannot reliably compare
+        return False
 
     def perform_update(self) -> UpdateResult:
         """Download and replace files from GitHub."""

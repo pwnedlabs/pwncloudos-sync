@@ -97,7 +97,14 @@ class BaseUpdater(ABC):
                     text=True,
                     timeout=10
                 )
-                return result.returncode == 0
+                # Accept any output as proof the tool runs (some tools
+                # return non-zero for --version, e.g. john the ripper)
+                if result.returncode == 0:
+                    return True
+                output = (result.stdout + result.stderr).strip()
+                if output:
+                    return True
+                return False
             except Exception:
                 return False
         return True

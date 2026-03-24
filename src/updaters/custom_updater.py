@@ -48,12 +48,39 @@ class CustomUpdater(BaseUpdater):
         return None
 
     def get_latest_version(self) -> Optional[str]:
-        """Get latest version (not always possible for custom tools)."""
+        """Get latest version from GitHub releases when possible."""
+        if not self.tool.github_repo:
+            return None
+        try:
+            import requests
+            url = f"https://api.github.com/repos/{self.tool.github_repo}/releases/latest"
+            response = requests.get(url, timeout=10)
+            if response.ok:
+                tag = response.json().get('tag_name', '')
+                return tag.lstrip('v') if tag else None
+        except Exception:
+            pass
         return None
 
     def needs_update(self) -> bool:
-        """Custom tools always check for updates."""
-        return True
+        """Check if update is needed by comparing versions when possible."""
+        current = self.get_current_version()
+        latest = self.get_latest_version()
+
+        if current and latest:
+            try:
+                return self._version_key(current) < self._version_key(latest)
+            except Exception:
+                return current != latest
+
+        # Can't determine both versions — don't falsely claim update available
+        return False
+
+    def _version_key(self, value: str):
+        """Build a sortable key from a version string."""
+        import re
+        parts = re.findall(r'\d+', value)
+        return tuple(int(p) for p in parts) if parts else (0,)
 
     def perform_update(self) -> UpdateResult:
         """Execute custom update script."""
