@@ -22,7 +22,8 @@ class RollbackData:
     backup_path: Path
     original_version: str
     backup_timestamp: datetime
-    backup_type: str  # 'directory', 'file', 'git_state', 'pipx_state'
+    backup_type: str  # 'directory', 'file', 'files', 'git_state', 'pipx_state'
+    original_path: Optional[Path] = None  # Where to restore to
 
 
 class RollbackEngine:
@@ -47,6 +48,10 @@ class RollbackEngine:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{tool.name}_{timestamp}"
 
+        # Store tool name so child _backup_* methods can use it directly
+        # instead of parsing from backup_name (which breaks for hyphenated names).
+        self._current_tool_name = tool.name
+
         if tool.install_method in ('git', 'git_python'):
             rollback_data = self._backup_git_state(tool, backup_name)
         elif tool.install_method == 'pipx':
@@ -59,6 +64,19 @@ class RollbackEngine:
             rollback_data = self._backup_directory(tool.path, backup_name)
 
         self.active_backups[tool.name] = rollback_data
+
+        # Write sidecar metadata for cleanup_old_backups to identify tool name
+        try:
+            meta_file = self.backup_dir / f"{rollback_data.backup_path.stem}.meta.json"
+            meta_file.write_text(json.dumps({
+                'tool_name': tool.name,
+                'original_path': str(tool.path),
+                'backup_type': rollback_data.backup_type,
+                'timestamp': rollback_data.backup_timestamp.isoformat(),
+            }))
+        except Exception:
+            pass  # Non-critical: cleanup may not group correctly, but backup/restore still works
+
         return rollback_data
 
     def restore(self, rollback_data: RollbackData) -> bool:
@@ -98,20 +116,50 @@ class RollbackEngine:
         Args:
             keep_count: Number of backups to keep per tool
         """
-        # Group backups by tool name
+        # Group backups by tool name using the known active_backups tool names.
+        # Also check for sidecar metadata written during create_backup.
         tool_backups: Dict[str, list] = {}
 
         for item in self.backup_dir.iterdir():
             if item.name.startswith('.'):
                 continue
 
-            # Parse tool name from backup name (format: toolname_timestamp)
-            parts = item.name.rsplit('_', 2)
-            if len(parts) >= 2:
-                tool_name = '_'.join(parts[:-2]) if len(parts) > 2 else parts[0]
-                if tool_name not in tool_backups:
-                    tool_backups[tool_name] = []
-                tool_backups[tool_name].append(item)
+            # Try to read sidecar metadata
+            meta_file = self.backup_dir / (item.stem + '.meta.json') if not item.name.endswith('.meta.json') else None
+            tool_name = None
+
+            if meta_file and meta_file.exists():
+                try:
+                    meta = json.loads(meta_file.read_text())
+                    tool_name = meta.get('tool_name')
+                except Exception:
+                    pass
+
+            if not tool_name:
+                # Fallback: try to match against known tool names from active_backups
+                for known_name in self.active_backups:
+                    if item.name.startswith(known_name + '_'):
+                        tool_name = known_name
+                        break
+
+            if not tool_name:
+                # Skip metadata files themselves and unrecognizable items
+                if item.name.endswith('.meta.json'):
+                    continue
+                # Last resort: best-effort parse (timestamp is YYYYMMDD_HHMMSS)
+                name = item.stem
+                # Try to split off the last two underscore-separated groups as timestamp
+                parts = name.rsplit('_', 2)
+                if len(parts) >= 3 and parts[-2].isdigit() and parts[-1].isdigit():
+                    tool_name = '_'.join(parts[:-2])
+                elif len(parts) >= 2 and parts[-1].isdigit():
+                    tool_name = '_'.join(parts[:-1])
+                else:
+                    tool_name = name
+
+            if tool_name not in tool_backups:
+                tool_backups[tool_name] = []
+            tool_backups[tool_name].append(item)
 
         # Keep only recent backups
         for tool_name, backups in tool_backups.items():
@@ -125,6 +173,10 @@ class RollbackEngine:
                     shutil.rmtree(backup)
                 else:
                     backup.unlink()
+                    # Also remove sidecar metadata if present
+                    meta = self.backup_dir / (backup.stem + '.meta.json')
+                    if meta.exists():
+                        meta.unlink()
 
     def _backup_git_state(self, tool, backup_name: str) -> RollbackData:
         """Record git commit for rollback."""
@@ -187,11 +239,12 @@ class RollbackEngine:
             original_version = "missing"
 
         return RollbackData(
-            tool_name=backup_name.split('_')[0],
+            tool_name=self._current_tool_name,
             backup_path=backup_path,
             original_version=original_version,
             backup_timestamp=datetime.now(),
             backup_type='file',
+            original_path=path,
         )
 
     def _backup_files(self, tool_path: Path, backup_name: str) -> RollbackData:
@@ -205,11 +258,12 @@ class RollbackEngine:
                 shutil.copy2(file, backup_dir / file.name)
 
         return RollbackData(
-            tool_name=backup_name.split('_')[0],
+            tool_name=self._current_tool_name,
             backup_path=backup_dir,
             original_version="files",
             backup_timestamp=datetime.now(),
             backup_type='files',
+            original_path=tool_path,
         )
 
     def _backup_directory(self, path: Path, backup_name: str) -> RollbackData:
@@ -220,11 +274,12 @@ class RollbackEngine:
             tar.add(path, arcname=path.name)
 
         return RollbackData(
-            tool_name=backup_name.split('_')[0],
+            tool_name=self._current_tool_name,
             backup_path=backup_path,
             original_version="directory",
             backup_timestamp=datetime.now(),
             backup_type='directory',
+            original_path=path,
         )
 
     def _restore_git_state(self, rollback_data: RollbackData) -> bool:
@@ -254,7 +309,7 @@ class RollbackEngine:
             return True
 
         # Uninstall current and install specific version
-        subprocess.run(['pipx', 'uninstall', package], capture_output=True)
+        subprocess.run(['pipx', 'uninstall', package], capture_output=True, text=True)
         result = subprocess.run(
             ['pipx', 'install', f"{package}=={version}"],
             capture_output=True, text=True
@@ -264,20 +319,69 @@ class RollbackEngine:
 
     def _restore_file(self, rollback_data: RollbackData) -> bool:
         """Restore a single file from backup."""
-        # Extract original path from tool info
-        # This is a simplified version - real implementation would store original path
-        return False  # Placeholder
+        if not rollback_data.original_path:
+            logger.error("Cannot restore file: original_path not recorded in backup")
+            return False
+
+        backup = rollback_data.backup_path
+        target = Path(rollback_data.original_path)
+
+        if not backup.exists():
+            logger.error(f"Backup file not found: {backup}")
+            return False
+
+        # If the backup was a sentinel for a missing file, remove the installed copy
+        if backup.read_text().strip() == "MISSING":
+            if target.exists():
+                target.unlink()
+            return True
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(backup, target)
+        return True
 
     def _restore_files(self, rollback_data: RollbackData) -> bool:
-        """Restore specific files from backup."""
+        """Restore specific files from backup directory."""
+        if not rollback_data.original_path:
+            logger.error("Cannot restore files: original_path not recorded in backup")
+            return False
+
         backup_dir = rollback_data.backup_path
-        # Tool path needs to be determined from backup metadata
-        return False  # Placeholder
+        target_dir = Path(rollback_data.original_path)
+
+        if not backup_dir.exists() or not backup_dir.is_dir():
+            logger.error(f"Backup directory not found: {backup_dir}")
+            return False
+
+        for backed_up_file in backup_dir.iterdir():
+            if backed_up_file.is_file():
+                dest = target_dir / backed_up_file.name
+                shutil.copy2(backed_up_file, dest)
+
+        return True
 
     def _restore_directory(self, rollback_data: RollbackData) -> bool:
         """Restore directory from tarball."""
-        # This would extract the tarball to the original location
-        return False  # Placeholder
+        if not rollback_data.original_path:
+            logger.error("Cannot restore directory: original_path not recorded in backup")
+            return False
+
+        backup_path = rollback_data.backup_path
+        target = Path(rollback_data.original_path)
+
+        if not backup_path.exists():
+            logger.error(f"Backup tarball not found: {backup_path}")
+            return False
+
+        # Remove the current version of the directory
+        if target.exists():
+            shutil.rmtree(target)
+
+        # Extract tarball to the parent directory (arcname was dir.name)
+        with tarfile.open(backup_path, "r:gz") as tar:
+            tar.extractall(target.parent)
+
+        return True
 
     def _get_git_remote(self, path: Path) -> str:
         """Get the git remote URL."""

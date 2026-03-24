@@ -34,6 +34,13 @@ def main() -> int:
     # Load configuration
     config = load_config(args)
 
+    # Detect if no action flags were given — default to check-and-offer mode
+    has_action = (
+        config.update_all or config.category or config.tools
+        or config.list_only or config.check_only or config.dry_run
+    )
+    default_mode = not has_action
+
     # Print banner (unless quiet mode)
     if not config.quiet:
         print_banner()
@@ -104,6 +111,10 @@ def main() -> int:
     if config.check_only:
         check_updates_only(tools_to_update, config, logger)
         return 0
+
+    # Default mode (no flags): check for updates and offer to install
+    if default_mode:
+        return check_and_offer_updates(tools_to_update, config, logger)
 
     # VALIDATION STEP: Show tools table first
     print(f"\n{Colors.BOLD}{Colors.WHITE}The following tools will be checked for updates:{Colors.END}")
@@ -207,8 +218,10 @@ def update_tool(tool, config, rollback_engine, state_manager, logger):
                 skip_reason="Dry run"
             )
 
-        # Create backup
-        rollback_data = rollback_engine.create_backup(tool, updater)
+        # Create backup (unless rollback is disabled)
+        rollback_data = None
+        if not config.no_rollback:
+            rollback_data = rollback_engine.create_backup(tool, updater)
 
         # Perform update
         result = updater.perform_update()
@@ -225,13 +238,15 @@ def update_tool(tool, config, rollback_engine, state_manager, logger):
             else:
                 # Verification failed - rollback
                 logger.tool_fail(tool.name, "Verification failed")
-                rollback_engine.restore(rollback_data)
+                if rollback_data and not config.no_rollback:
+                    rollback_engine.restore(rollback_data)
                 result.success = False
                 result.error_message = "Verification failed after update"
         else:
             # Update failed - rollback
             logger.tool_fail(tool.name, result.error_message)
-            rollback_engine.restore(rollback_data)
+            if rollback_data and not config.no_rollback:
+                rollback_engine.restore(rollback_data)
 
         return result
 
@@ -305,6 +320,162 @@ def check_updates_only(tools, config, logger):
         print(f"\n{Colors.BOLD}Run {Colors.CYAN}pwncloudos-sync --all{Colors.END}{Colors.BOLD} to update.{Colors.END}")
 
     print()
+
+
+def check_and_offer_updates(tools, config, logger) -> int:
+    """
+    Default mode: check for updates, display results, offer to install.
+
+    Returns:
+        int: exit code
+    """
+    from .tools.registry import get_updater_for_tool
+    from .cli import Colors
+    from .core.privileges import request_sudo_upfront
+
+    print(f"\n{Colors.CYAN}{'═' * 80}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.WHITE}                    PWNCLOUDOS — VERSION CHECK{Colors.END}")
+    print(f"{Colors.CYAN}{'═' * 80}{Colors.END}\n")
+
+    updates_available = []  # (tool, current, latest)
+    up_to_date = []
+    errors = []
+
+    for i, tool in enumerate(tools, 1):
+        print(f"\r{Colors.GRAY}Checking [{i}/{len(tools)}] {tool.name}...{Colors.END}          ", end='', flush=True)
+        try:
+            updater = get_updater_for_tool(tool, config)
+            current = updater.get_current_version() or "unknown"
+            latest = updater.get_latest_version() or "unknown"
+            needs_update = updater.needs_update()
+
+            if needs_update:
+                updates_available.append((tool, current, latest))
+            else:
+                up_to_date.append((tool, current))
+        except Exception as e:
+            errors.append((tool, str(e)[:50]))
+
+    print("\r" + " " * 80 + "\r", end='')  # Clear line
+
+    # --- Rich table ---
+    name_w = 30
+    cat_w = 14
+    cur_w = 16
+    lat_w = 16
+    stat_w = 18
+    header_line = "─" * (5 + name_w + cat_w + cur_w + lat_w + stat_w)
+
+    print(f"{Colors.CYAN}{header_line}{Colors.END}")
+    print(
+        f"{Colors.BOLD}{Colors.WHITE}"
+        f"{'#':<5}{'TOOL':<{name_w}}{'CATEGORY':<{cat_w}}"
+        f"{'INSTALLED':<{cur_w}}{'LATEST':<{lat_w}}{'STATUS':<{stat_w}}"
+        f"{Colors.END}"
+    )
+    print(f"{Colors.CYAN}{header_line}{Colors.END}")
+
+    idx = 1
+    for tool, current, latest in updates_available:
+        status = f"{Colors.YELLOW}↑ Update available{Colors.END}"
+        print(
+            f"  {Colors.CYAN}{idx:<4}{Colors.END}"
+            f"{Colors.WHITE}{tool.name:<{name_w}}{Colors.END}"
+            f"{Colors.GRAY}{tool.category:<{cat_w}}{Colors.END}"
+            f"{Colors.WHITE}{current:<{cur_w}}{Colors.END}"
+            f"{Colors.GREEN}{latest:<{lat_w}}{Colors.END}"
+            f"{status}"
+        )
+        idx += 1
+
+    for tool, current in up_to_date:
+        status = f"{Colors.GREEN}✓ Up-to-date{Colors.END}"
+        print(
+            f"  {Colors.CYAN}{idx:<4}{Colors.END}"
+            f"{Colors.WHITE}{tool.name:<{name_w}}{Colors.END}"
+            f"{Colors.GRAY}{tool.category:<{cat_w}}{Colors.END}"
+            f"{Colors.WHITE}{current:<{cur_w}}{Colors.END}"
+            f"{Colors.GRAY}{current:<{lat_w}}{Colors.END}"
+            f"{status}"
+        )
+        idx += 1
+
+    for tool, error in errors:
+        status = f"{Colors.RED}✗ Error{Colors.END}"
+        print(
+            f"  {Colors.CYAN}{idx:<4}{Colors.END}"
+            f"{Colors.WHITE}{tool.name:<{name_w}}{Colors.END}"
+            f"{Colors.GRAY}{tool.category:<{cat_w}}{Colors.END}"
+            f"{Colors.GRAY}{'?':<{cur_w}}{Colors.END}"
+            f"{Colors.GRAY}{'?':<{lat_w}}{Colors.END}"
+            f"{status}"
+        )
+        idx += 1
+
+    print(f"{Colors.CYAN}{header_line}{Colors.END}")
+
+    # Summary
+    print(f"\n{Colors.BOLD}Summary:{Colors.END}")
+    print(f"  • Updates available: {Colors.YELLOW}{len(updates_available)}{Colors.END}")
+    print(f"  • Up to date: {Colors.GREEN}{len(up_to_date)}{Colors.END}")
+    if errors:
+        print(f"  • Errors: {Colors.RED}{len(errors)}{Colors.END}")
+
+    if not updates_available:
+        print(f"\n{Colors.GREEN}{Colors.BOLD}All tools are up to date!{Colors.END}\n")
+        return 0
+
+    # Offer to update
+    print()
+    try:
+        response = input(
+            f"{Colors.BOLD}{len(updates_available)} update(s) available. "
+            f"Would you like to update them now? [y/N]: {Colors.END}"
+        ).strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        print("\n")
+        return 0
+
+    if response not in ('y', 'yes'):
+        print(f"\n{Colors.YELLOW}Update skipped.{Colors.END}\n")
+        return 0
+
+    # Proceed to update only tools that need it
+    print(f"\n{Colors.CYAN}Requesting sudo credentials...{Colors.END}")
+    request_sudo_upfront()
+
+    backup_dir = Path.home() / '.cache' / 'pwncloudos-sync' / 'backups'
+    rollback_engine = RollbackEngine(backup_dir)
+
+    state_dir = Path.home() / '.cache' / 'pwncloudos-sync' / 'state'
+    state_manager = StateManager(state_dir)
+    state_manager.load()
+
+    print(f"\n{Colors.BOLD}{Colors.CYAN}Starting updates...{Colors.END}\n")
+
+    tools_to_update = [t for t, _, _ in updates_available]
+    results = []
+    for i, tool in enumerate(tools_to_update, 1):
+        print(f"[{i}/{len(tools_to_update)}] ", end='')
+        result = update_tool(tool, config, rollback_engine, state_manager, logger)
+        results.append(result)
+
+    # Print summary
+    from .logger import SyncLogger
+    sync_logger = SyncLogger(config.log_file, config.verbose)
+    sync_logger.summary(results)
+
+    state_manager.save()
+
+    success_count = sum(1 for r in results if r.success)
+    failed_count = sum(1 for r in results if not r.success and not r.skipped)
+
+    if failed_count == 0:
+        return 0
+    elif success_count > 0:
+        return 1
+    else:
+        return 2
 
 
 class UpdateResult:

@@ -68,13 +68,14 @@ def request_sudo_upfront() -> bool:
         return False
 
 
-def run_as_root(command: List[str], capture_output: bool = True) -> subprocess.CompletedProcess:
+def run_as_root(command: List[str], capture_output: bool = True, timeout: int = 300) -> subprocess.CompletedProcess:
     """
     Execute a command with root privileges.
 
     Args:
         command: Command to execute as list of strings
         capture_output: Whether to capture stdout/stderr
+        timeout: Timeout in seconds (default 300)
 
     Returns:
         CompletedProcess result
@@ -84,14 +85,16 @@ def run_as_root(command: List[str], capture_output: bool = True) -> subprocess.C
         return subprocess.run(
             command,
             capture_output=capture_output,
-            text=True
+            text=True,
+            timeout=timeout
         )
     else:
         # Use sudo
         return subprocess.run(
             ['sudo'] + command,
             capture_output=capture_output,
-            text=True
+            text=True,
+            timeout=timeout
         )
 
 

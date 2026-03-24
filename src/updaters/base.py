@@ -88,11 +88,13 @@ class BaseUpdater(ABC):
         """
         # Default implementation - can be overridden
         if self.tool.version_command:
+            import shlex
             import subprocess
             try:
                 result = subprocess.run(
-                    self.tool.version_command.split(),
+                    shlex.split(self.tool.version_command),
                     capture_output=True,
+                    text=True,
                     timeout=10
                 )
                 return result.returncode == 0

@@ -3,6 +3,7 @@ pipx package updater for pwncloudos-sync.
 """
 
 import json
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -230,7 +231,7 @@ class PipxUpdater(BaseUpdater):
         if self.tool.version_command:
             try:
                 result = subprocess.run(
-                    self.tool.version_command.split(),
+                    shlex.split(self.tool.version_command),
                     capture_output=True, timeout=10
                 )
                 # Some tools print version/help and exit non-zero; treat output as a sign of life.

@@ -72,7 +72,7 @@ class AptUpdater(BaseUpdater):
             # Update package list first
             result = subprocess.run(
                 ['sudo', 'apt-get', 'update'],
-                capture_output=True, timeout=120
+                capture_output=True, text=True, timeout=120
             )
 
             # Upgrade the specific package

@@ -55,3 +55,6 @@ Thumbs.db
 .coverage
 htmlcov/
 .tox/
+
+# Implementation plan (internal only)
+IMPLEMENTATION_PLAN.md

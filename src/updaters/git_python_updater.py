@@ -24,7 +24,7 @@ class GitPythonUpdater(GitUpdater):
             self.logger.info(f"Installing Python dependencies from {req_file}")
             try:
                 result = subprocess.run(
-                    ['pip3', 'install', '-r', str(req_file), '--upgrade', '--quiet'],
+                    ['python3', '-m', 'pip', 'install', '-r', str(req_file), '--upgrade', '--quiet'],
                     capture_output=True, text=True, timeout=300
                 )
 
@@ -44,8 +44,8 @@ class GitPythonUpdater(GitUpdater):
             self.logger.info("Running pip install -e .")
             try:
                 subprocess.run(
-                    ['pip3', 'install', '-e', str(self.tool.path), '--quiet'],
-                    capture_output=True, timeout=300
+                    ['python3', '-m', 'pip', 'install', '-e', str(self.tool.path), '--quiet'],
+                    capture_output=True, text=True, timeout=300
                 )
             except Exception as e:
                 self.logger.warning(f"pip install -e failed: {e}")
@@ -54,8 +54,8 @@ class GitPythonUpdater(GitUpdater):
             self.logger.info("Running pip install from pyproject.toml")
             try:
                 subprocess.run(
-                    ['pip3', 'install', str(self.tool.path), '--quiet'],
-                    capture_output=True, timeout=300
+                    ['python3', '-m', 'pip', 'install', str(self.tool.path), '--quiet'],
+                    capture_output=True, text=True, timeout=300
                 )
             except Exception as e:
                 self.logger.warning(f"pip install failed: {e}")

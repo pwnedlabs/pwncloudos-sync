@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 import requests
 from .base import BaseUpdater, UpdateResult
+from ..core.safeguards import safe_write
 
 
 class FileReplacementUpdater(BaseUpdater):
@@ -95,20 +96,30 @@ class FileReplacementUpdater(BaseUpdater):
         return self._get_latest_commit()
 
     def needs_update(self) -> bool:
-        """Check if files have changed on GitHub."""
+        """Check if files have changed on GitHub by comparing remote SHA to local git state."""
         if not self.tool.github_repo:
             self.logger.warning(f"No GitHub repo for {self.tool.name}, cannot check updates")
             return False
 
-        # Simple check: compare current and latest commit
-        current = self.get_current_version()
-        latest = self.get_latest_version()
-
-        if not current or not latest:
+        latest = self._get_latest_commit()
+        if not latest:
             return True
 
-        # If we only have hashes, we can't compare directly
-        # Always return True to check (the actual download will skip unchanged files)
+        # Try to get local git commit hash for comparison
+        if self.tool.path.is_dir() and (self.tool.path / '.git').exists():
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['git', '-C', str(self.tool.path), 'rev-parse', '--short=7', 'HEAD'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    local_sha = result.stdout.strip()
+                    return local_sha != latest
+            except Exception:
+                pass
+
+        # No git directory — cannot reliably compare, assume update needed
         return True
 
     def perform_update(self) -> UpdateResult:
@@ -140,9 +151,9 @@ class FileReplacementUpdater(BaseUpdater):
                         error_message=f"Failed to download {filename}: HTTP {response.status_code}"
                     )
 
-                # Write new content
+                # Write new content (through safeguards)
                 target = self.tool.path / filename
-                target.write_text(response.text)
+                safe_write(target, response.text)
                 updated_files.append(filename)
                 self.logger.info(f"Updated: {filename}")
 
@@ -167,7 +178,7 @@ class FileReplacementUpdater(BaseUpdater):
         if req_file.exists() and "requirements.txt" in updated_files:
             try:
                 result = subprocess.run(
-                    ["pip3", "install", "-r", str(req_file), "--upgrade", "--quiet"],
+                    ["python3", "-m", "pip", "install", "-r", str(req_file), "--upgrade", "--quiet"],
                     capture_output=True, text=True, timeout=300
                 )
                 if result.returncode != 0:
@@ -190,7 +201,7 @@ class FileReplacementUpdater(BaseUpdater):
         try:
             result = subprocess.run(
                 ["python3", str(self.main_script), "--help"],
-                capture_output=True, timeout=10
+                capture_output=True, text=True, timeout=10
             )
             # Some tools return non-zero for --help, that's OK
             return True

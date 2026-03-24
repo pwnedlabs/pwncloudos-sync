@@ -2,6 +2,7 @@
 Network connectivity checks for pwncloudos-sync.
 """
 
+import subprocess
 import requests
 from typing import Dict, Optional
 import logging
@@ -29,7 +30,7 @@ def check_internet_connectivity(timeout: int = 5) -> bool:
     for endpoint in TEST_ENDPOINTS:
         try:
             response = requests.head(endpoint, timeout=timeout)
-            if response.status_code < 500:
+            if response.status_code < 400:
                 logger.debug(f"Connectivity check passed: {endpoint}")
                 return True
         except requests.RequestException as e:

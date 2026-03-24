@@ -28,6 +28,8 @@ class Tool:
     requires_compile: bool = False
     custom_handler: Optional[str] = None
     docker_compose: Optional[str] = None
+    docker_image: Optional[str] = None
+    ps_module_manifest: Optional[str] = None  # e.g. "AADInternals.psd1" for PowerShell tools
     enabled: bool = True
 
 
@@ -73,6 +75,8 @@ def _load_from_manifest(path: Path) -> List[Tool]:
             requires_compile=tool_data.get('requires_compile', False),
             custom_handler=tool_data.get('custom_handler'),
             docker_compose=tool_data.get('docker_compose'),
+            docker_image=tool_data.get('docker_image'),
+            ps_module_manifest=tool_data.get('ps_module_manifest'),
             enabled=tool_data.get('enabled', True),
         )
         tools.append(tool)

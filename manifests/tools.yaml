@@ -292,6 +292,7 @@ tools:
     install_method: git
     path: /opt/ps_tools/AADInternals
     github_repo: Gerenios/AADInternals
+    ps_module_manifest: AADInternals.psd1
     arch_support: [amd64, arm64]
 
   - name: GraphRunner
@@ -299,6 +300,7 @@ tools:
     install_method: git
     path: /opt/ps_tools/GraphRunner
     github_repo: dafthack/GraphRunner
+    ps_module_manifest: GraphRunner.psd1
     arch_support: [amd64, arm64]
 
   - name: invoke_modules
@@ -306,6 +308,7 @@ tools:
     install_method: git
     path: /opt/ps_tools/invoke_modules
     github_repo: PowerShellMafia/PowerSploit
+    ps_module_manifest: PowerSploit.psd1
     arch_support: [amd64, arm64]
 
   - name: MFASweep
@@ -313,6 +316,7 @@ tools:
     install_method: git
     path: /opt/ps_tools/MFASweep
     github_repo: dafthack/MFASweep
+    ps_module_manifest: MFASweep.psd1
     arch_support: [amd64, arm64]
 
   - name: TokenTacticsV2
@@ -320,6 +324,7 @@ tools:
     install_method: git
     path: /opt/ps_tools/TokenTacticsV2
     github_repo: f-bader/TokenTacticsV2
+    ps_module_manifest: TokenTacticsV2.psd1
     arch_support: [amd64, arm64]
 
   # === Code Scanning Tools ===

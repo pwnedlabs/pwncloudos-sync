@@ -3,6 +3,8 @@ CLI argument parsing and interactive display for pwncloudos-sync.
 """
 
 import argparse
+import shlex
+import shutil
 import subprocess
 import re
 import json
@@ -115,21 +117,78 @@ class Colors:
 def print_banner():
     """Print the pwncloudos-sync banner."""
     banner = f"""
-{Colors.CYAN}╔═══════════════════════════════════════════════════════════════════════╗
-║                                                                           ║
-║  {Colors.MAGENTA}██████╗ ██╗    ██╗███╗   ██╗ ██████╗██╗      ██████╗ ██╗   ██╗██████╗ {Colors.CYAN} ║
-║  {Colors.MAGENTA}██╔══██╗██║    ██║████╗  ██║██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗{Colors.CYAN} ║
-║  {Colors.MAGENTA}██████╔╝██║ █╗ ██║██╔██╗ ██║██║     ██║     ██║   ██║██║   ██║██║  ██║{Colors.CYAN} ║
-║  {Colors.MAGENTA}██╔═══╝ ██║███╗██║██║╚██╗██║██║     ██║     ██║   ██║██║   ██║██║  ██║{Colors.CYAN} ║
-║  {Colors.MAGENTA}██║     ╚███╔███╔╝██║ ╚████║╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝{Colors.CYAN} ║
-║  {Colors.MAGENTA}╚═╝      ╚══╝╚══╝ ╚═╝  ╚═══╝ ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝ {Colors.CYAN} ║
-║                                                                           ║
-║              {Colors.YELLOW}pwncloudos-sync{Colors.CYAN} - Security Tool Updater v1.0.0             ║
-║                        {Colors.WHITE}https://pwncloudos.pwnedlabs.io{Colors.CYAN}                    ║
-║                                                                           ║
-╚═══════════════════════════════════════════════════════════════════════════╝{Colors.END}
+{Colors.CYAN}╔══════════════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                          ║
+║  {Colors.MAGENTA}██████╗ ██╗    ██╗███╗   ██╗ ██████╗██╗      ██████╗ ██╗   ██╗██████╗  ██████╗ ███████╗{Colors.CYAN} ║
+║  {Colors.MAGENTA}██╔══██╗██║    ██║████╗  ██║██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗██╔═══██╗██╔════╝{Colors.CYAN} ║
+║  {Colors.MAGENTA}██████╔╝██║ █╗ ██║██╔██╗ ██║██║     ██║     ██║   ██║██║   ██║██║  ██║██║   ██║███████╗{Colors.CYAN} ║
+║  {Colors.MAGENTA}██╔═══╝ ██║███╗██║██║╚██╗██║██║     ██║     ██║   ██║██║   ██║██║  ██║██║   ██║╚════██║{Colors.CYAN} ║
+║  {Colors.MAGENTA}██║     ╚███╔███╔╝██║ ╚████║╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝╚██████╔╝███████║{Colors.CYAN} ║
+║  {Colors.MAGENTA}╚═╝      ╚══╝╚══╝ ╚═╝  ╚═══╝ ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝ ╚══════╝{Colors.CYAN} ║
+║                                                                                          ║
+║                {Colors.YELLOW}PWNCLOUDOS{Colors.CYAN} - Security Tool Updater v1.0.0                              ║
+║                          {Colors.WHITE}https://pwncloudos.pwnedlabs.io{Colors.CYAN}                              ║
+║                                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════════════════════╝{Colors.END}
 """
     print(banner)
+
+
+# ============================================================================
+# PowerShell Version Detection
+# ============================================================================
+
+_pwsh_available: Optional[bool] = None
+
+
+def check_pwsh_available() -> bool:
+    """Check if PowerShell (pwsh) is installed and working."""
+    global _pwsh_available
+    if _pwsh_available is not None:
+        return _pwsh_available
+    try:
+        result = subprocess.run(
+            ['pwsh', '--version'],
+            capture_output=True, text=True, timeout=10
+        )
+        _pwsh_available = result.returncode == 0
+    except Exception:
+        _pwsh_available = False
+    return _pwsh_available
+
+
+def _get_ps_module_version(tool) -> Optional[str]:
+    """
+    Extract version from a PowerShell module manifest (.psd1) using pwsh.
+
+    Falls back to None if pwsh is not available or the manifest is missing.
+    """
+    if not check_pwsh_available():
+        return None
+
+    manifest_name = tool.ps_module_manifest
+    manifest_path = Path(tool.path) / manifest_name
+
+    if not manifest_path.exists():
+        # Try to find it recursively
+        candidates = list(Path(tool.path).rglob(manifest_name))
+        if candidates:
+            manifest_path = candidates[0]
+        else:
+            return None
+
+    try:
+        cmd = f"(Import-PowerShellDataFile '{manifest_path}').ModuleVersion"
+        result = subprocess.run(
+            ['pwsh', '-NoProfile', '-Command', cmd],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+
+    return None
 
 
 # ============================================================================
@@ -139,11 +198,18 @@ def print_banner():
 def get_tool_version(tool) -> str:
     """Get the current version of a tool."""
 
+    # PowerShell module manifest (.psd1) — dedicated detection path
+    if getattr(tool, 'ps_module_manifest', None):
+        version = _get_ps_module_version(tool)
+        if version:
+            return version
+        # Fall through to git hash fallback
+
     # Try explicit version command if available
     if tool.version_command:
         try:
             result = subprocess.run(
-                tool.version_command.split(),
+                shlex.split(tool.version_command),
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0 or result.stdout or result.stderr:
@@ -199,8 +265,7 @@ def check_tool_exists(tool) -> bool:
             for candidate in names_to_try:
                 if not candidate:
                     continue
-                result = subprocess.run(['which', candidate], capture_output=True)
-                if result.returncode == 0:
+                if shutil.which(candidate):
                     return True
         except Exception:
             pass

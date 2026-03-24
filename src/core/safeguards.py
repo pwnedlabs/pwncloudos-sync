@@ -26,6 +26,10 @@ class UnauthorizedPathError(Exception):
 
 # THESE PATHS MUST NEVER BE MODIFIED BY THE UPDATER
 PROTECTED_PATHS: List[str] = [
+    # Custom PwnCloudOS launcher scripts inside tool directories
+    "/opt/**/*Launcher*",
+    "/opt/**/*_launcher*",
+
     # Launcher scripts - documentation only, not actual tools
     "**/docs/configs/launchers/**/*.sh",
     "**/docs/configs/launchers/**/*.desktop",
@@ -97,9 +101,12 @@ def is_path_protected(path: Path) -> bool:
             logger.debug(f"Path {path_str} matches protected pattern: {pattern}")
             return True
 
-    # Additional hard-coded checks
-    if 'launcher' in path_str.lower():
-        logger.debug(f"Path {path_str} contains 'launcher' - protected")
+    # Additional hard-coded checks — match 'launcher' in the FILENAME only,
+    # not the full path, to avoid false positives for tools whose directory
+    # path happens to contain the word (e.g. a tool named 'launcher-tool').
+    filename = Path(path_str).name.lower()
+    if 'launcher' in filename:
+        logger.debug(f"Path {path_str} filename contains 'launcher' - protected")
         return True
 
     if path_str.endswith('.desktop'):

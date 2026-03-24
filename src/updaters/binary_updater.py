@@ -3,6 +3,7 @@ Binary download updater for pwncloudos-sync.
 """
 
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -23,7 +24,7 @@ class BinaryUpdater(BaseUpdater):
         if self.tool.version_command:
             try:
                 result = subprocess.run(
-                    self.tool.version_command.split(),
+                    shlex.split(self.tool.version_command),
                     capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0:
@@ -192,8 +193,10 @@ class BinaryUpdater(BaseUpdater):
             # Install
             target = self.tool.path
             if target.is_dir():
-                # Find binary in directory
-                pass  # Handle directory case
+                # Install binary into the directory with tool name
+                dest = target / self.tool.name
+                shutil.copy2(extracted, dest)
+                os.chmod(dest, 0o755)
             else:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 # Copy to target
@@ -225,32 +228,70 @@ class BinaryUpdater(BaseUpdater):
             )
 
     def _extract_tarball(self, path: str) -> str:
-        """Extract tarball and return path to binary."""
+        """Extract tarball and return path to binary. Validates paths against traversal."""
         extract_dir = tempfile.mkdtemp()
+        extract_dir_resolved = os.path.realpath(extract_dir)
+
         with tarfile.open(path, 'r:gz') as tar:
+            # Validate all members before extracting (prevent path traversal)
+            for member in tar.getmembers():
+                member_path = os.path.realpath(os.path.join(extract_dir, member.name))
+                if not member_path.startswith(extract_dir_resolved + os.sep) and member_path != extract_dir_resolved:
+                    raise ValueError(f"Path traversal detected in archive: {member.name}")
             tar.extractall(extract_dir)
 
-        # Find binary
+        # Find binary — prefer executable files named after the tool
+        tool_name = self.tool.name.lower()
+        candidates = []
         for root, dirs, files in os.walk(extract_dir):
             for f in files:
                 fpath = os.path.join(root, f)
                 if os.access(fpath, os.X_OK):
-                    return fpath
+                    # Prioritize files matching tool name
+                    if f.lower() == tool_name or f.lower().startswith(tool_name):
+                        return fpath
+                    candidates.append(fpath)
 
+        if candidates:
+            return candidates[0]
         return extract_dir
 
     def _extract_zip(self, path: str) -> str:
-        """Extract zip and return path to binary."""
+        """Extract zip and return path to binary. Validates paths against traversal."""
         extract_dir = tempfile.mkdtemp()
+        extract_dir_resolved = os.path.realpath(extract_dir)
+
         with zipfile.ZipFile(path, 'r') as zip_ref:
+            # Validate all members before extracting (prevent path traversal)
+            for info in zip_ref.infolist():
+                member_path = os.path.realpath(os.path.join(extract_dir, info.filename))
+                if not member_path.startswith(extract_dir_resolved + os.sep) and member_path != extract_dir_resolved:
+                    raise ValueError(f"Path traversal detected in archive: {info.filename}")
             zip_ref.extractall(extract_dir)
 
-        # Find binary
+        # Find binary — skip documentation and non-binary files
+        tool_name = self.tool.name.lower()
+        skip_extensions = {'.md', '.txt', '.rst', '.license', '.yml', '.yaml', '.json', '.toml'}
+        skip_names = {'license', 'readme', 'changelog', 'dockerfile', 'makefile'}
+        candidates = []
+
         for root, dirs, files in os.walk(extract_dir):
             for f in files:
-                fpath = os.path.join(root, f)
-                if not f.endswith('.md') and not f.endswith('.txt'):
-                    os.chmod(fpath, 0o755)
-                    return fpath
+                f_lower = f.lower()
+                ext = os.path.splitext(f_lower)[1]
+                name_no_ext = os.path.splitext(f_lower)[0]
 
+                if ext in skip_extensions or name_no_ext in skip_names:
+                    continue
+
+                fpath = os.path.join(root, f)
+                os.chmod(fpath, 0o755)
+
+                # Prioritize files matching tool name
+                if f_lower == tool_name or f_lower.startswith(tool_name):
+                    return fpath
+                candidates.append(fpath)
+
+        if candidates:
+            return candidates[0]
         return extract_dir

@@ -3,6 +3,7 @@ Custom script updater for pwncloudos-sync.
 """
 
 import os
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -18,11 +19,12 @@ class CustomUpdater(BaseUpdater):
         self.script_path = self._find_script()
 
     def _find_script(self) -> Optional[Path]:
-        """Find the custom update script."""
+        """Find the custom update script. Only accepts plain filenames (no path traversal)."""
         if self.tool.custom_handler:
-            # Look in scripts directory
+            # Security: strip any directory components to prevent path traversal
+            safe_name = os.path.basename(self.tool.custom_handler)
             scripts_dir = Path(__file__).parent.parent.parent / 'scripts'
-            script = scripts_dir / self.tool.custom_handler
+            script = scripts_dir / safe_name
             if script.exists():
                 return script
 
@@ -33,7 +35,7 @@ class CustomUpdater(BaseUpdater):
         if self.tool.version_command:
             try:
                 result = subprocess.run(
-                    self.tool.version_command.split(),
+                    shlex.split(self.tool.version_command),
                     capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0:

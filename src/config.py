@@ -13,7 +13,7 @@ import yaml
 class Config:
     """Configuration for pwncloudos-sync."""
     # Update scope
-    update_all: bool = True
+    update_all: bool = False
     category: Optional[str] = None
     tools: List[str] = field(default_factory=list)
     exclude_tools: List[str] = field(default_factory=list)
@@ -91,6 +91,8 @@ def apply_config_file(config: Config, file_config: dict):
 
 def apply_cli_args(config: Config, args):
     """Apply command line arguments to config."""
+    if hasattr(args, 'all') and args.all:
+        config.update_all = True
     if hasattr(args, 'category') and args.category:
         config.category = args.category
         config.update_all = False
