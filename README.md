@@ -2,8 +2,7 @@
 
 A standalone tool that performs in-place upgrades of all security tools installed on [PwnCloudOS](https://pwncloudos.pwnedlabs.io/) without requiring users to download fresh OS images.
 
-<img width="1172" height="571" alt="image" src="https://github.com/user-attachments/assets/ca6ae291-0d47-489c-ac89-e034d1ed467e" />
-
+<img width="2344" height="866" alt="image" src="https://github.com/user-attachments/assets/549d6293-77d8-4f25-a9e1-cb1f6443a0c6" />
 
 ## Features
 
