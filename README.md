@@ -72,16 +72,16 @@ python3 -m src.main --all --yes
 
 ## Supported Tool Categories (44 tools)
 
-| Category | Color | Location | Example Tools |
-|----------|-------|----------|---------------|
-| **aws** | 🟠 Orange | `/opt/aws_tools/` | AWeSomeUserFinder, pacu, pmapper, s3-account-search |
-| **azure** | 🔵 Blue | `/opt/azure_tools/` | AzureHound, BloodHound, ROADtools, o365spray |
-| **gcp** | 🟢 Teal | `/opt/gcp_tools/` | gcp_scanner, google-spray, google-workspace-enum |
-| **multi_cloud** | 🟣 Lavender | `/opt/multi_cloud_tools/` | cloudfox, prowler, ScoutSuite, steampipe, powerpipe |
-| **ps_tools** | 🩷 Pink | `/opt/ps_tools/` | AADInternals, GraphRunner, TokenTacticsV2, MFASweep |
-| **code_scanning** | 🟢 Lime | `/opt/code_scanning/` | trufflehog, git-secrets |
-| **cracking** | 🟤 Salmon | `/opt/cracking-tools/` | John the Ripper, hashcat |
-| **system** | 🔵 Sky | system-wide | azure-cli, impacket, awscli |
+| Category | Location | Example Tools |
+|----------|----------|---------------|
+| **aws** | `/opt/aws_tools/` | AWeSomeUserFinder, pacu, pmapper, s3-account-search |
+| **azure** | `/opt/azure_tools/` | AzureHound, BloodHound, ROADtools, o365spray |
+| **gcp** | `/opt/gcp_tools/` | gcp_scanner, google-spray, google-workspace-enum |
+| **multi_cloud** | `/opt/multi_cloud_tools/` | cloudfox, prowler, ScoutSuite, steampipe, powerpipe |
+| **ps_tools** | `/opt/ps_tools/` | AADInternals, GraphRunner, TokenTacticsV2, MFASweep |
+| **code_scanning** | `/opt/code_scanning/` | trufflehog, git-secrets |
+| **cracking** | `/opt/cracking-tools/` | John the Ripper, hashcat |
+| **system** | system-wide | azure-cli, impacket, awscli |
 
 ## Update Methods
 
@@ -151,6 +151,10 @@ sudo bash /opt/pwncloudos-sync/scripts/setup_google_spray.sh
 ## Contributing
 
 Contributions are welcome!
+
+## Contributors
+
+All contributors are acknowledged on the [PwnCloudOS website](https://pwncloudos.pwnedlabs.io/) and in the repository README.
 
 ## License
 
