@@ -2,6 +2,9 @@
 
 A standalone tool that performs in-place upgrades of all security tools installed on [PwnCloudOS](https://pwncloudos.pwnedlabs.io/) without requiring users to download fresh OS images.
 
+<img width="1172" height="571" alt="image" src="https://github.com/user-attachments/assets/ca6ae291-0d47-489c-ac89-e034d1ed467e" />
+
+
 ## Features
 
 - **Smart version detection**: Checks installed vs latest version for 44 security tools
