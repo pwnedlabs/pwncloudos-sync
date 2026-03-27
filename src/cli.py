@@ -108,6 +108,7 @@ class Colors:
     GRAY = '\033[90m'
     WHITE = '\033[97m'
     MAGENTA = '\033[35m'
+    PURPLE = '\033[38;2;138;43;226m'
     LIGHT_BLUE = '\033[38;5;75m'
     ORANGE = '\033[38;5;208m'
     TEAL = '\033[38;5;80m'
@@ -119,9 +120,9 @@ class Colors:
 
     # Per-category color map
     CATEGORY_COLORS = {
-        'aws': '\033[38;5;208m',      # Orange
-        'azure': '\033[38;5;75m',     # Light blue
-        'gcp': '\033[38;5;80m',       # Teal
+        'aws': '\033[38;5;208m',          # Orange
+        'azure': '\033[38;5;75m',         # Light blue
+        'gcp': '\033[38;5;80m',           # Teal
         'multi_cloud': '\033[38;5;141m',  # Lavender
         'ps_tools': '\033[38;5;213m',     # Pink
         'code_scanning': '\033[38;5;154m', # Lime
@@ -142,20 +143,21 @@ class Colors:
 
 def print_banner():
     """Print the pwncloudos-sync banner."""
+    term_width = shutil.get_terminal_size((92, 24)).columns
+    sep = Colors.CYAN + '═' * min(term_width, 92) + Colors.END
+
     banner = f"""
-{Colors.CYAN}╔══════════════════════════════════════════════════════════════════════════════════════════╗
-║                                                                                          ║
-║  {Colors.MAGENTA}██████╗ ██╗    ██╗███╗   ██╗ ██████╗██╗      ██████╗ ██╗   ██╗██████╗  ██████╗ ███████╗{Colors.CYAN} ║
-║  {Colors.MAGENTA}██╔══██╗██║    ██║████╗  ██║██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗██╔═══██╗██╔════╝{Colors.CYAN} ║
-║  {Colors.MAGENTA}██████╔╝██║ █╗ ██║██╔██╗ ██║██║     ██║     ██║   ██║██║   ██║██║  ██║██║   ██║███████╗{Colors.CYAN} ║
-║  {Colors.MAGENTA}██╔═══╝ ██║███╗██║██║╚██╗██║██║     ██║     ██║   ██║██║   ██║██║  ██║██║   ██║╚════██║{Colors.CYAN} ║
-║  {Colors.MAGENTA}██║     ╚███╔███╔╝██║ ╚████║╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝╚██████╔╝███████║{Colors.CYAN} ║
-║  {Colors.MAGENTA}╚═╝      ╚══╝╚══╝ ╚═╝  ╚═══╝ ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝ ╚══════╝{Colors.CYAN} ║
-║                                                                                          ║
-║                {Colors.YELLOW}PWNCLOUDOS{Colors.CYAN} - Security Tool Updater v1.0.0                              ║
-║                          {Colors.WHITE}https://pwncloudos.pwnedlabs.io{Colors.CYAN}                              ║
-║                                                                                          ║
-╚══════════════════════════════════════════════════════════════════════════════════════════╝{Colors.END}
+{sep}
+  {Colors.PURPLE}██████╗ ██╗    ██╗███╗   ██╗ ██████╗██╗      ██████╗ ██╗   ██╗██████╗  ██████╗ ███████╗{Colors.END}
+  {Colors.PURPLE}██╔══██╗██║    ██║████╗  ██║██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗██╔═══██╗██╔════╝{Colors.END}
+  {Colors.PURPLE}██████╔╝██║ █╗ ██║██╔██╗ ██║██║     ██║     ██║   ██║██║   ██║██║  ██║██║   ██║███████╗{Colors.END}
+  {Colors.PURPLE}██╔═══╝ ██║███╗██║██║╚██╗██║██║     ██║     ██║   ██║██║   ██║██║  ██║██║   ██║╚════██║{Colors.END}
+  {Colors.PURPLE}██║     ╚███╔███╔╝██║ ╚████║╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝╚██████╔╝███████║{Colors.END}
+  {Colors.PURPLE}╚═╝      ╚══╝╚══╝ ╚═╝  ╚═══╝ ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝╚══════╝{Colors.END}
+
+                {Colors.YELLOW}PWNCLOUDOS{Colors.END} - Security Tool Updater v1.0.0
+                  {Colors.WHITE}https://pwncloudos.pwnedlabs.io{Colors.END}
+{sep}
 """
     print(banner)
 
@@ -373,7 +375,7 @@ def print_tools_table(tools: List):
     for category in sorted(categories.keys()):
         # Category header
         print(f"\n{Colors.YELLOW}{Colors.BOLD}  ▶ {category.upper()}{Colors.END}")
-        print(f"{Colors.GRAY}  {'─' * (header_line.__len__() - 4)}{Colors.END}")
+        print(f"{Colors.GRAY}  {'─' * (len(header_line) - 4)}{Colors.END}")
 
         for tool in sorted(categories[category], key=lambda t: t.name.lower()):
             exists = check_tool_exists(tool)
@@ -382,10 +384,8 @@ def print_tools_table(tools: List):
             # Status
             if not exists:
                 status = f"{Colors.RED}✗ Missing{Colors.END}"
-                status_plain = "Missing"
             else:
                 status = f"{Colors.GREEN}✓ OK{Colors.END}"
-                status_plain = "OK"
 
             # Method with color
             method_color = method_colors.get(tool.install_method, Colors.WHITE)
@@ -397,7 +397,7 @@ def print_tools_table(tools: List):
                 path_str = "..." + path_str[-(path_w - 6):]
 
             # Version color (gray if N/A)
-            if version == "N/A" or version == "NOT FOUND":
+            if version in ("N/A", "NOT FOUND"):
                 ver_display = f"{Colors.GRAY}{version}{Colors.END}"
             else:
                 ver_display = f"{Colors.WHITE}{version}{Colors.END}"
